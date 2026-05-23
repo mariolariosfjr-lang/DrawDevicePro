@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DrawDevicePro</title>
+
+<style>
+html, body {
+    margin: 0;
+    overflow: hidden;
+    background: #1f1f1f;
+    font-family: Arial, sans-serif;
+    touch-action: none;
+}
+
+#toolbar {
+    position: fixed;
+    top: 10px;
+    left: 10px;
+    right: 10px;
+    height: 65px;
+    background: rgba(40,40,40,0.95);
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px;
+    z-index: 10;
+    box-shadow: 0 0 15px rgba(0,0,0,0.5);
+    flex-wrap: wrap;
+}
+
+#logo {
+    color: white;
+    font-weight: bold;
+}
+
+#user {
+    color: #00ffcc;
+    margin-left: auto;
+    font-weight: bold;
+}
+
+button, input {
+    border: none;
+    border-radius: 10px;
+    padding: 8px;
+    font-size: 13px;
+}
+
+button {
+    background: #3a3a3a;
+    color: white;
+    cursor: pointer;
+}
+
+button:hover {
+    background: #555;
+}
+
+canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    background: white;
+}
+
+/* LOGIN */
+#authBox {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.85);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 20;
+}
+
+#authPanel {
+    background: #2c2c2c;
+    padding: 20px;
+    border-radius: 15px;
+    width: 280px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    color: white;
+}
+
+/* MODE ACTIVE STYLE */
+.active {
+    background: #00c2ff !important;
+    color: black !important;
+}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="authBox">
+    <div id="authPanel">
+        <h3>DrawDevicePro</h3>
+        <input id="username" placeholder="username">
+        <button onclick="login()">Login</button>
+        <button onclick="signup()">Signup</button>
+    </div>
+</div>
+
+<!-- TOOLBAR -->
+<div id="toolbar">
+    <div id="logo">DrawDevicePro</div>
+
+    <input type="color" id="color" value="#000000">
+    <input type="range" id="size" min="1" max="60" value="5">
+
+    <button onclick="clearCanvas()">Clear</button>
+    <button onclick="savePNG()">PNG</button>
+    <button onclick="downloadSVG()">SVG</button>
+    <button onclick="downloadMac()">Mac</button>
+
+    <button id="blurBtn" onclick="toggleBlur()">Blur</button>
+    <button id="gradBtn" onclick="toggleGradient()">Gradient</button>
+
+    <div id="user">Not logged in</div>
+</div>
+
+<canvas id="draw"></canvas>
+
+<script>
+const canvas = document.getElementById("draw");
+const ctx = canvas.getContext("2d");
+
+function resize() {
+    canvas.width = innerWidth;
+    canvas.height = innerHeight;
+}
+resize();
+window.addEventListener("resize", resize);
+
+ctx.lineCap = "round";
+ctx.lineJoin = "round";
+
+let drawing = false;
+let blur = false;
+let gradient = false;
+let currentUser = null;
+
+let svgPaths = [];
+
+const color = document.getElementById("color");
+const size = document.getElementById("size");
+const userLabel = document.getElementById("user");
+
+let last = null;
+
+/* AUTH */
+function login() {
+    const u = document.getElementById("username").value.trim();
+    if (!u) return;
+    currentUser = "@" + u;
+    userLabel.textContent = currentUser;
+    document.getElementById("authBox").style.display = "none";
+}
+
+function signup() {
+    login();
+}
+
+/* DRAW */
+function start(x,y){
+    drawing = true;
+    last = {x,y};
+    svgPaths.push(`M ${x} ${y}`);
+}
+
+function move(x,y){
+    if(!drawing) return;
+
+    ctx.lineWidth = size.value;
+
+    if(blur){
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = color.value;
+    } else {
+        ctx.shadowBlur = 0;
+    }
+
+    if(gradient){
+        const g = ctx.createLinearGradient(last.x,last.y,x,y);
+        g.addColorStop(0,color.value);
+        g.addColorStop(1,"#ff00ff");
+        ctx.strokeStyle = g;
+    } else {
+        ctx.strokeStyle = color.value;
+    }
+
+    ctx.beginPath();
+    ctx.moveTo(last.x,last.y);
+    ctx.lineTo(x,y);
+    ctx.stroke();
+
+    svgPaths.push(`L ${x} ${y}`);
+    last = {x,y};
+}
+
+function end(){
+    drawing = false;
+}
+
+/* INPUT */
+function pos(e){
+    if(e.touches){
+        return {x:e.touches[0].clientX,y:e.touches[0].clientY};
+    }
+    return {x:e.clientX,y:e.clientY};
+}
+
+canvas.addEventListener("mousedown",e=>start(pos(e).x,pos(e).y));
+canvas.addEventListener("mousemove",e=>move(pos(e).x,pos(e).y));
+canvas.addEventListener("mouseup",end);
+canvas.addEventListener("mouseleave",end);
+
+canvas.addEventListener("touchstart",e=>{
+    e.preventDefault();
+    const p=pos(e);
+    start(p.x,p.y);
+});
+canvas.addEventListener("touchmove",e=>{
+    e.preventDefault();
+    const p=pos(e);
+    move(p.x,p.y);
+});
+canvas.addEventListener("touchend",end);
+
+/* TOGGLES */
+function toggleBlur(){
+    blur = !blur;
+    blurBtn.classList.toggle("active");
+}
+
+function toggleGradient(){
+    gradient = !gradient;
+    gradBtn.classList.toggle("active");
+}
+
+/* CLEAR */
+function clearCanvas(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    svgPaths = [];
+}
+
+/* PNG */
+function savePNG(){
+    const a=document.createElement("a");
+    a.download="DrawDevicePro.png";
+    a.href=canvas.toDataURL();
+    a.click();
+}
+
+/* SVG EXPORT */
+function downloadSVG(){
+    let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${canvas.width}" height="${canvas.height}">`;
+    svg += `<path d="${svgPaths.join(" ")}" stroke="black" fill="none" stroke-width="2"/>`;
+    svg += `</svg>`;
+
+    const blob = new Blob([svg],{type:"image/svg+xml"});
+    const url = URL.createObjectURL(blob);
+
+    const a=document.createElement("a");
+    a.href=url;
+    a.download="DrawDevicePro.svg";
+    a.click();
+}
+
+/* MAC DOWNLOAD (REAL LINK ONLY) */
+function downloadMac(){
+    window.location.href = "YOUR_APP.dmg";
+}
+</script>
+
+</body>
+</html>
